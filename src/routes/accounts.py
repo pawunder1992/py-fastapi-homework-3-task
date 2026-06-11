@@ -279,7 +279,7 @@ async def login(
     }
 
 
-@router.post("/api/v1/accounts/refresh/", status_code=status.HTTP_200_OK)
+@router.post("/refresh/", status_code=status.HTTP_200_OK)
 async def refresh_access_token(
     user_token: TokenRefreshRequestSchema,
     jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
