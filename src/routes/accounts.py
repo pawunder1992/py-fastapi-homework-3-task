@@ -28,6 +28,7 @@ from schemas import (
     TokenRefreshRequestSchema,
 )
 from security.interfaces import JWTAuthManagerInterface
+from security.passwords import hash_password
 
 router = APIRouter()
 
@@ -202,7 +203,8 @@ async def reset_password_complete(
         raise HTTPException(status_code=400, detail="Invalid email or token.")
 
     try:
-        db_user.password = user.password
+        validate_password(user.password)
+        db_user._hashed_password = hash_password(user.password)
         db.add(db_user)
 
         await db.execute(
@@ -277,7 +279,7 @@ async def login(
     }
 
 
-@router.post("/refresh/", status_code=status.HTTP_200_OK)
+@router.post("/api/v1/accounts/refresh/", status_code=status.HTTP_200_OK)
 async def refresh_access_token(
     user_token: TokenRefreshRequestSchema,
     jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
