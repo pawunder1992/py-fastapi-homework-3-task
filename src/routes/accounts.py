@@ -1,6 +1,5 @@
 import string
-from datetime import datetime
-
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, status, HTTPException
 from sqlalchemy import select, delete
@@ -100,7 +99,7 @@ async def register(
     except Exception:
         await db.rollback()
         raise HTTPException(
-            status_code=500, detail=f"An error occurred during user creation."
+            status_code=500, detail="An error occurred during user creation."
         )
     return new_user
 
@@ -111,7 +110,7 @@ async def activate(
 ):
     db_user = await get_user_by_email(db, user.email)
     if not db_user:
-        raise HTTPException(status_code=400, detail="User does not exist")
+        raise HTTPException(status_code=400, detail="Invalid or expired activation token.")
 
     if db_user.is_active:
         raise HTTPException(
@@ -127,7 +126,7 @@ async def activate(
     if (
         not activation_token
         or user.token != activation_token.token
-        or activation_token.expires_at < datetime.utcnow()
+        or activation_token.expires_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc)
     ):
         raise HTTPException(
             status_code=400, detail="Invalid or expired activation token."
@@ -170,7 +169,7 @@ async def reset_password_complete(
     db: AsyncSession = Depends(get_db),
 ):
     db_user = await get_user_by_email(db, user.email)
-    if not db_user:
+    if not db_user or not db_user.is_active:
         raise HTTPException(status_code=400, detail="Invalid email or token.")
 
     reset_token = await db.scalar(
@@ -184,7 +183,7 @@ async def reset_password_complete(
 
     if (
         user.token != reset_token.token
-        or reset_token.expires_at < datetime.utcnow()
+        or reset_token.expires_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc)
     ):
         try:
             await db.execute(
@@ -203,8 +202,7 @@ async def reset_password_complete(
         raise HTTPException(status_code=400, detail="Invalid email or token.")
 
     try:
-        new_password = validate_password(user.password)
-        db_user.password = new_password
+        db_user.password = user.password
         db.add(db_user)
 
         await db.execute(
